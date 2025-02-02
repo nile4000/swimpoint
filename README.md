@@ -83,7 +83,7 @@ The app is divided into several clearly defined modules, each responsible for a 
 5. **Display:**  
    The UI module shows a visual indicator (and optionally a haptic signal) in the peripheral view to prompt the swimmer to correct their course.
 
-## Testing
+## Testing Phase 1
 
 ### Physical Test Environment
 - **Environment:**  
