@@ -17,7 +17,7 @@ The goal of this project is to develop a smartwatch app that assists open water 
 - Ensure the robustness of the app, with potential offline functionality.
 
 ### Out of Scope
-- Development of additional hardware or external devices.
+- Development of additional hardware, platforms or external devices.
 - Integration of complex navigation systems using GPS in areas with poor signal reception (given GPS limitations underwater).
 - Comprehensive analysis of performance data (e.g., training statistics) – the focus is solely on course correction.
 
@@ -38,7 +38,7 @@ The app is divided into several clearly defined modules, each responsible for a 
   Uses Android Sensor APIs.
 - **Tasks:**
   - Regular polling and buffering of sensor data.
-  - Ensure water resistance and energy optimization (e.g., managing the sampling rate).
+  - Ensure water resistance (Screen-Saver) and energy optimization (e.g., managing the sampling rate).
 
 #### 2. Sensor Fusion & Preprocessing
 - **Function:**  
@@ -87,7 +87,7 @@ The app is divided into several clearly defined modules, each responsible for a 
 
 ### Physical Test Environment
 - **Environment:**  
-  A 25-meter pool is sufficient for initial tests.
+  A 25-meter pool is sufficient for phase 1 tests.
   
 - **Test Procedure:**
   - The tester swims one length (25 meters) in the pool.
@@ -101,5 +101,5 @@ The app is divided into several clearly defined modules, each responsible for a 
   - The algorithm correctly identifies the swimming cycle and compares the current direction with the target course.
   - The indicator is activated only once per length when significant course deviations occur.
 - **Robustness:**
-  - The app operates reliably in a wet environment.
+  - The app operates reliably in a wet environment (Screen-Saver).
   - Sensor data is stable enough to prevent false triggers.
