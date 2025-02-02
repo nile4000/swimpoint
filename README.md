@@ -1,4 +1,4 @@
-# Swimpoint
+# 🏊‍♂️Swimpoint
 Watch App for Course Correction in Open Water Swimming
 
 ## Overview
@@ -7,10 +7,10 @@ The goal of this project is to develop a smartwatch app that assists open water 
 
 ## Goals
 
-### Must
+### 📱Must
 - Develop a smartwatch app that provides real-time visual feedback to open water swimmers when significant course deviations occur.
 
-### Should
+### 🌍Should
 - Integrate and fuse sensor signals (accelerometer, gyroscope, magnetometer, and possibly GPS) to accurately detect swimming direction and movement.
 - Develop an algorithm that detects swimming strokes and continuously evaluates course deviation.
 - Design a minimalist indicator that appears in the peripheral view to unobtrusively support the swimmer.
