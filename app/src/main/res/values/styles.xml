@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Theme -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="android:background">@color/backgroundColor</item>
+        <item name="android:statusBarColor">@color/backgroundColor</item>
+    </style>
+    <!-- Button Style -->
+    <style name="PrimaryButton">
+        <item name="android:layout_width">86dp</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:padding">10dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@drawable/button_style</item>
+    </style>
+    <style name="NegativeButton">
+        <item name="android:layout_width">86dp</item>
+        <item name="android:layout_height">44dp</item>
+        <item name="android:padding">10dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:gravity">center</item>
+        <item name="android:background">@drawable/button_style</item>
+    </style>
+</resources>

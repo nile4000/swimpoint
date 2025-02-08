@@ -1,105 +1,59 @@
-# 🏊‍♂️Swimpoint
-Watch App for Course Correction in Open Water Swimming
+Wear Tiles Sample
+=================
 
-## Overview
+![Tile Messaging Screenshot](screenshots/tile_messaging.png)
 
-The goal of this project is to develop a smartwatch app that assists open water swimmers in maintaining their course. The app continuously tracks swimming movements using sensors (accelerometer, gyroscope, magnetometer, and optionally GPS) and calculates the swimmer's direction. When a significant and consistent deviation from the planned course is detected over several strokes, an unobtrusive visual indicator is activated in the periphery to prompt the swimmer to correct their course.
+[Tiles](https://d.android.com/training/wearables/tiles) provide easy access to the information and
+actions users need in order to get things done. With a simple swipe from the watch face, a user can
+find out the latest forecast or start a timer.
 
-## Goals
+This repository contains a sample tile built using the [Tiles Material Components](https://developer.android.com/reference/androidx/wear/protolayout/material/package-summary)
+library (for UI) and [Horologist Tiles](https://github.com/google/horologist#-tiles) (preview
+utilities and Kotlin-friendly wrappers).
 
-### 📱Must
-- Develop a smartwatch app that provides real-time visual feedback to open water swimmers when significant course deviations occur.
+Get Started
+-----------
 
-### 🌍Should
-- Integrate and fuse sensor signals (accelerometer, gyroscope, magnetometer, and possibly GPS) to accurately detect swimming direction and movement.
-- Develop an algorithm that detects swimming strokes and continuously evaluates course deviation.
-- Design a minimalist indicator that appears in the peripheral view to unobtrusively support the swimmer.
-- Ensure the robustness of the app, with potential offline functionality.
+Build the project from the command line using `./gradlew build` or import it into Android Studio to
+benefit from the IDE shortcuts like direct surface launching which lets you launch the Messaging
+tile directly to a device or emulator in just one click.
 
-### Out of Scope
-- Development of additional hardware, platforms or external devices.
-- Integration of complex navigation systems using GPS in areas with poor signal reception (given GPS limitations underwater).
-- Comprehensive analysis of performance data (e.g., training statistics) – the focus is solely on course correction.
+For the sample, start with `MessagingTileService.kt`; the layout (with IDE preview) can be found in 
+`MessagingTileLayout.kt`.
 
-## Organization
+Golden Tiles
+------------
 
-- **Developer:** Me
+The sample also showcases most of the Golden Tile layouts from the [Tiles Design
+Kit](https://developer.android.com/training/wearables/design/tiles-design-system#tile-templates)
+in the `tiles.golden` package of the `debug` sourceset; see
+`GoldenTilesPreviewsRow[N].kt`. You may find it convenient to start with one of
+these layouts rather designing and coding your own from scratch.
 
-## Architecture Overview
+To see what these look like, open one of the "GoldenTilesPreviewsRowN" files and
+choose the "Split" or "Design" editor view.
 
-The app is divided into several clearly defined modules, each responsible for a specific function. The objective is to process sensor data in real time, detect swimming strokes and course deviations, and provide appropriate feedback in the periphery.
+![Screenshot of Android Studio showing the design view of GoldenTilesPreviewsRow1.kt. A grid view of Wear OS Tiles are displayed.](screenshots/tile_preview_design_view.png)
 
-### Modules
+`GoldenTilesPreviewsRow1.kt`:
 
-#### 1. Sensor Manager & Data Acquisition
-- **Function:**  
-  Captures data from built-in sensors (accelerometer, gyroscope, magnetometer; optionally GPS, if available).
-- **Implementation:**  
-  Uses Android Sensor APIs.
-- **Tasks:**
-  - Regular polling and buffering of sensor data.
-  - Ensure water resistance (Screen-Saver) and energy optimization (e.g., managing the sampling rate).
+![Screenshot of Tile previews for goal, workoutButtons, workoutLargeChip, run and ski](screenshots/golden1.png)
 
-#### 2. Sensor Fusion & Preprocessing
-- **Function:**  
-  Combines and filters raw data to obtain a consistent representation of the movement.
-- **Implementation:**  
-  - Use of filters (e.g., Kalman filter) to reduce noise.
-  - Calculation of current orientation and movement vectors.
-- **Task:**  
-  Provide stable data for the stroke detection and course correction algorithm.
+`GoldenTilesPreviewsRow2.kt`:
 
-#### 3. Stroke & Course Deviation Algorithm
-- **Function:**  
-  Analyzes the preprocessed data to:
-  - Recognize recurring swimming stroke patterns.
-  - Compare the current direction with a predetermined target course.
-- **Implementation:**  
-  - Logic to detect swimming cycles (e.g., based on cyclic accelerometer data).
-  - Calculate the deviation (in degrees) and set threshold values for feedback.
-- **Task:**  
-  Determine when and how the visual indicator should be activated.
+![Screenshot of Tile previews for heartRateSample, meditationChips, meditationButtons, timer and alarm](screenshots/golden2.png)
 
-#### 4. UI & Feedback Module
-- **Function:**  
-  Displays feedback on the smartwatch.
-- **Implementation:**  
-  - Uses Android UI frameworks (e.g., Jetpack Compose or traditional Android Views) for Wear OS.
-  - Features a minimalist design that shows the indicator in the peripheral view (potentially with animations or color changes).
-  - Optionally integrates haptic feedback (vibrations) using the Wearable API.
-- **Task:**  
-  Present information in an unobtrusive and intuitive way so that the swimmer is not distracted.
+`GoldenTilesPreviewsRow3.kt`:
 
-## Data Flow
+![Screenshot of Tile previews for weather, news, calendar, social and media](screenshots/golden3.png)
 
-1. **Sensor Data:**  
-   Continuously polled by the Sensor Manager and forwarded to the Sensor Fusion module.
-2. **Preprocessing:**  
-   The Sensor Fusion module filters the data and calculates the current orientation and movement vectors.
-3. **Algorithm:**  
-   The Stroke & Course Deviation Algorithm processes the filtered data, detects swimming cycles, and compares the current course with the target.
-4. **Feedback:**  
-   When a course deviation is detected, a corresponding feedback command is sent to the UI module.
-5. **Display:**  
-   The UI module shows a visual indicator (and optionally a haptic signal) in the peripheral view to prompt the swimmer to correct their course.
+Support
+-------
 
-## Testing Phase 1
+- Stack Overflow: <https://stackoverflow.com/questions/tagged/wear-os>
 
-### Physical Test Environment
-- **Environment:**  
-  A 25-meter pool is sufficient for phase 1 tests.
-  
-- **Test Procedure:**
-  - The tester swims one length (25 meters) in the pool.
-  - On average, 8–12 swimming strokes are performed per length.
-  - **Objective:**  
-    The sensor/algorithm should trigger once per length (25 m) and activate the visual (and optionally haptic) indicator correctly.
+If you've found an error in this sample, please file an issue:
+<https://github.com/android/wear-os-samples>
 
-### Test Criteria
-- **Functionality:**
-  - The sensor reliably detects 8–12 swimming strokes per length.
-  - The algorithm correctly identifies the swimming cycle and compares the current direction with the target course.
-  - The indicator is activated only once per length when significant course deviations occur.
-- **Robustness:**
-  - The app operates reliably in a wet environment (Screen-Saver).
-  - Sensor data is stable enough to prevent false triggers.
+Patches are encouraged, and may be submitted by forking this project and
+submitting a pull request through GitHub. Please see CONTRIBUTING.md for more details.
