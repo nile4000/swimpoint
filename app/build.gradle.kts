@@ -78,6 +78,7 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.appcompat)
+    implementation(libs.androidx.wear)
 
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
