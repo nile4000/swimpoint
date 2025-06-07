@@ -6,7 +6,6 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.util.Log
-import kotlin.math.abs
 import kotlin.math.sqrt
 
 private const val TAG = "AppSensorManager"
@@ -52,39 +51,34 @@ class AppSensorManager(
     // Flag für Aufzeichnung
     private var isRecording = false
 
-    // Zählung der Schwimmzüge
-    private var strokeCount = 0
-    private var isStrokeInProgress = false
-    private var lastPeakTime = 0L
+    // Delegated helpers
+    private val orientationTracker = OrientationTracker(
+        onCourseDeviation = onCourseDeviation,
+        yawChangeThreshold = YAW_CHANGE_THRESHOLD,
+        deviationCountThreshold = DEVIATION_COUNT_THRESHOLD,
+        tag = TAG
+    )
 
-    // Gyro/Yaw
-    private var initialYaw = 0f
-    private var currentYaw = 0f
-    private var lastGyroTimestamp = 0L
-    private var initialYawSet = false
-    private var deviationCounter = 0
+    private val strokeDetector = StrokeDetector(
+        onStrokeCountChanged = onStrokeCountChanged,
+        onCycleCompleted = { orientationTracker.checkOrientation() },
+        strokesPerCycle = 7,
+        accThreshold = ACC_THRESHOLD,
+        minTimeBetweenPeaksMs = MIN_TIME_BETWEEN_PEAKS_MS,
+        tag = TAG
+    )
 
     private fun magnitude(x: Float, y: Float, z: Float): Float =
         sqrt(x * x + y * y + z * z)
 
-    private fun normalizeAngle(angle: Float): Float {
-        var a = angle % 360f
-        if (a < 0f) a += 360f
-        return a
-    }
-
-    private fun yawDifference(reference: Float, current: Float): Float {
-        val diff = abs(current - reference)
-        return if (diff > 180f) 360f - diff else diff
-    }
 
     // -----------------------------------------------------------
     // Start/Stop Recording
     // -----------------------------------------------------------
     fun startRecording() {
         isRecording = true
-        initialYawSet = false
-        deviationCounter = 0
+        strokeDetector.reset()
+        orientationTracker.reset()
         // Registriere Sensoren zunächst im IDLE-Modus:
         registerSensors(SensorMode.IDLE)
         Log.d(TAG, "=== START Recording ===")
@@ -92,8 +86,8 @@ class AppSensorManager(
 
     fun stopRecording() {
         isRecording = false
-        // Sensoren abmelden
         unregisterSensors()
+        orientationTracker.reset()
         onCourseDeviation(false)
         Log.d(TAG, "=== STOP Recording ===")
     }
@@ -192,32 +186,7 @@ class AppSensorManager(
 
         // 2) Wenn Active & Recording => Schwimmzüge erkennen
         if (currentMode == SensorMode.ACTIVE && isRecording) {
-            detectStrokes(magnitude)
-        }
-    }
-
-    private fun detectStrokes(magnitude: Float) {
-        // Einfaches Beispiel: Peak-Detektion
-        if (magnitude > ACC_THRESHOLD && !isStrokeInProgress) {
-            val currentTime = System.currentTimeMillis()
-            if (currentTime - lastPeakTime > MIN_TIME_BETWEEN_PEAKS_MS) {
-                strokeCount++
-                isStrokeInProgress = true
-                lastPeakTime = currentTime
-
-                Log.d(TAG, "Stroke erkannt! strokeCount = $strokeCount")
-                onStrokeCountChanged(strokeCount)
-
-                // Beispiel: alle 7 Züge => Richtung checken
-                if (strokeCount == 7) {
-                    checkOrientation()
-                    strokeCount = 0
-                    onStrokeCountChanged(strokeCount) // Zurück auf 0
-                }
-            }
-        } else if (magnitude < ACC_THRESHOLD && isStrokeInProgress) {
-            // Wieder unterhalb der Schwelle => bereit für neuen "Peak"
-            isStrokeInProgress = false
+            strokeDetector.process(magnitude)
         }
     }
 
@@ -225,55 +194,10 @@ class AppSensorManager(
     // GYROSCOPE => einfache Yaw-Berechnung (optional)
     // -----------------------------------------------------------
     private fun handleGyroscope(event: SensorEvent) {
-        val gyroZ = event.values[2]
-        val timestamp = event.timestamp
-
-        if (lastGyroTimestamp != 0L) {
-            val dt = (timestamp - lastGyroTimestamp) * 1e-9f
-            val deltaYawDeg = gyroZ * dt * (180f / Math.PI.toFloat())
-
-            currentYaw = normalizeAngle(currentYaw + deltaYawDeg)
-            if (!initialYawSet) {
-                initialYaw = currentYaw
-                initialYawSet = true
-            }
-        }
-        lastGyroTimestamp = timestamp
+        orientationTracker.onGyroscope(event)
     }
 
     private fun handleRotationVector(event: SensorEvent) {
-        val rotationMatrix = FloatArray(9)
-        SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-        val orientation = FloatArray(3)
-        SensorManager.getOrientation(rotationMatrix, orientation)
-        // azimuth in radians -> convert to degrees
-        val yaw = normalizeAngle(Math.toDegrees(orientation[0].toDouble()).toFloat())
-
-        currentYaw = yaw
-        if (!initialYawSet) {
-            initialYaw = currentYaw
-            initialYawSet = true
-        }
-    }
-
-    private fun checkOrientation() {
-        if (!initialYawSet) {
-            Log.d(TAG, "Keine Initialorientierung gesetzt!")
-            return
-        }
-        val diff = yawDifference(initialYaw, currentYaw)
-        if (diff > YAW_CHANGE_THRESHOLD) {
-            deviationCounter++
-            Log.d(TAG, "Richtung stark geändert! (diff=$diff°)")
-            if (deviationCounter >= DEVIATION_COUNT_THRESHOLD) {
-                onCourseDeviation(true)
-            }
-        } else {
-            if (deviationCounter > 0) {
-                deviationCounter = 0
-                onCourseDeviation(false)
-            }
-            Log.d(TAG, "Richtung weitgehend gleich. (diff=$diff°)")
-        }
+        orientationTracker.onRotationVector(event)
     }
 }
