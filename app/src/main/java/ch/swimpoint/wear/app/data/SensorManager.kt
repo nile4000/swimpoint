@@ -19,13 +19,16 @@ private const val IDLE_TIMEOUT_MS = 3000L  // 3 Sekunden (Beispiel)
 class AppSensorManager(
     private val context: Context,
     // Callback, das aufgerufen wird, wenn strokeCount sich ändert
-    private val onStrokeCountChanged: (Int) -> Unit
+    private val onStrokeCountChanged: (Int) -> Unit,
+    // Callback, wenn eine relevante Kursabweichung erkannt wurde
+    private val onCourseDeviation: (Boolean) -> Unit = {}
 ) : SensorEventListener {
 
     // SensorManager und Sensoren
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val linearAcc: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
     private val gyroscope: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_GYROSCOPE)
+    private val rotationSensor: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
 
     // Motion idle/active
     private var currentMode = SensorMode.IDLE
@@ -45,6 +48,8 @@ class AppSensorManager(
     private var currentYaw = 0f
     private var lastGyroTimestamp = 0L
     private var initialYawSet = false
+    private var deviationCounter = 0
+    private val DEVIATION_COUNT_THRESHOLD = 3
 
     // Schwellenwerte
     private val ACC_THRESHOLD = 2.5f
@@ -55,6 +60,8 @@ class AppSensorManager(
     // -----------------------------------------------------------
     fun startRecording() {
         isRecording = true
+        initialYawSet = false
+        deviationCounter = 0
         // Registriere Sensoren zunächst im IDLE-Modus:
         registerSensors(SensorMode.IDLE)
         Log.d("AppSensorManager", "=== START Recording ===")
@@ -64,6 +71,7 @@ class AppSensorManager(
         isRecording = false
         // Sensoren abmelden
         unregisterSensors()
+        onCourseDeviation(false)
         Log.d("AppSensorManager", "=== STOP Recording ===")
     }
 
@@ -80,10 +88,13 @@ class AppSensorManager(
             sensorManager.registerListener(this, it, rate)
         } ?: Log.w("AppSensorManager", "TYPE_LINEAR_ACCELERATION nicht verfügbar")
 
-        // Falls du das Gyro auch dynamisch abfragen möchtest:
         gyroscope?.let {
             sensorManager.registerListener(this, it, rate)
         } ?: Log.w("AppSensorManager", "TYPE_GYROSCOPE nicht verfügbar")
+
+        rotationSensor?.let {
+            sensorManager.registerListener(this, it, rate)
+        } ?: Log.w("AppSensorManager", "TYPE_ROTATION_VECTOR nicht verfügbar")
 
         currentMode = mode
         Log.d("AppSensorManager", "Sensoren registriert mit Modus=$mode und Rate=$rate")
@@ -108,6 +119,7 @@ class AppSensorManager(
         when (event.sensor.type) {
             Sensor.TYPE_LINEAR_ACCELERATION -> handleLinearAcceleration(event)
             Sensor.TYPE_GYROSCOPE          -> handleGyroscope(event)
+            Sensor.TYPE_ROTATION_VECTOR    -> handleRotationVector(event)
         }
     }
 
@@ -208,6 +220,22 @@ class AppSensorManager(
         lastGyroTimestamp = timestamp
     }
 
+    private fun handleRotationVector(event: SensorEvent) {
+        val rotationMatrix = FloatArray(9)
+        SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+        val orientation = FloatArray(3)
+        SensorManager.getOrientation(rotationMatrix, orientation)
+        // azimuth in radians -> convert to degrees
+        var yaw = Math.toDegrees(orientation[0].toDouble()).toFloat()
+        if (yaw < 0) yaw += 360f
+
+        currentYaw = yaw
+        if (!initialYawSet) {
+            initialYaw = currentYaw
+            initialYawSet = true
+        }
+    }
+
     private fun checkOrientation() {
         if (!initialYawSet) {
             Log.d("AppSensorManager", "Keine Initialorientierung gesetzt!")
@@ -215,10 +243,17 @@ class AppSensorManager(
         }
         val diff = abs(currentYaw - initialYaw)
         val normalizedDiff = if (diff > 180) 360 - diff else diff
-
         if (normalizedDiff > YAW_CHANGE_THRESHOLD) {
+            deviationCounter++
             Log.d("AppSensorManager", "Richtung stark geändert! (diff=$normalizedDiff°)")
+            if (deviationCounter >= DEVIATION_COUNT_THRESHOLD) {
+                onCourseDeviation(true)
+            }
         } else {
+            if (deviationCounter > 0) {
+                deviationCounter = 0
+                onCourseDeviation(false)
+            }
             Log.d("AppSensorManager", "Richtung weitgehend gleich. (diff=$normalizedDiff°)")
         }
     }

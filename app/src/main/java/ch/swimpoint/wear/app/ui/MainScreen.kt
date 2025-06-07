@@ -5,6 +5,9 @@ import android.os.SystemClock
 import android.widget.Button
 import android.widget.Chronometer
 import android.widget.TextView
+import android.widget.ImageView
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.wear.ambient.AmbientLifecycleObserver
@@ -18,6 +21,8 @@ class MainScreen : AppCompatActivity(), AmbientLifecycleObserver {
 
     private lateinit var strokeCountTextView: TextView
     private lateinit var swimChronometer: Chronometer
+    private lateinit var courseIndicator: ImageView
+    private lateinit var vibrator: Vibrator
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,16 +35,28 @@ class MainScreen : AppCompatActivity(), AmbientLifecycleObserver {
         // TextView und Chronometer aus dem Layout holen
         strokeCountTextView = findViewById(R.id.strokeCountTextView)
         swimChronometer = findViewById(R.id.swimChronometer)
+        courseIndicator = findViewById(R.id.courseIndicator)
+        vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
 
         // SensorManager initialisieren und Callback definieren,
         // der bei Änderung die UI updatet.
         appSensorManager = AppSensorManager(
-            context = this
-        ) { newStrokeCount ->
-            runOnUiThread {
-                strokeCountTextView.text = "$newStrokeCount"
+            context = this,
+            onStrokeCountChanged = { newStrokeCount ->
+                runOnUiThread {
+                    strokeCountTextView.text = "$newStrokeCount"
+                }
+            },
+            onCourseDeviation = { deviated ->
+                runOnUiThread {
+                    courseIndicator.visibility = if (deviated) ImageView.VISIBLE else ImageView.GONE
+                    if (deviated) {
+                        val effect = VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE)
+                        vibrator.vibrate(effect)
+                    }
+                }
             }
-        }
+        )
 
         // Sensoren und Aufzeichnung automatisch starten,
         // sobald Activity erstellt wird.
