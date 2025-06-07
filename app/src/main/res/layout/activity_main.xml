@@ -72,4 +72,15 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         app:layout_constraintGuide_begin="100dp" />
+
+    <!-- Indicator for course deviation -->
+    <ImageView
+        android:id="@+id/courseIndicator"
+        android:layout_width="12dp"
+        android:layout_height="12dp"
+        android:layout_margin="8dp"
+        android:src="@drawable/indicator_circle"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 </androidx.constraintlayout.widget.ConstraintLayout>
