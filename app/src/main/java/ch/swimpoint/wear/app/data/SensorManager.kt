@@ -1,20 +1,15 @@
 package ch.swimpoint.wear.app.data
 
 import android.content.Context
-import android.hardware.*
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.util.Log
 import kotlin.math.abs
 import kotlin.math.sqrt
 
-// Sampling-Raten
-private const val SAMPLING_RATE_IDLE = SensorManager.SENSOR_DELAY_NORMAL
-private const val SAMPLING_RATE_ACTIVE = SensorManager.SENSOR_DELAY_GAME
-
-// Bewegungsschwellwert (für das Umschalten Idle -> Active)
-private const val MOTION_THRESHOLD = 1.5f
-
-// Zeit ohne größere Bewegung, um von Active -> Idle zu wechseln
-private const val IDLE_TIMEOUT_MS = 3000L  // 3 Sekunden (Beispiel)
+private const val TAG = "AppSensorManager"
 
 class AppSensorManager(
     private val context: Context,
@@ -23,6 +18,26 @@ class AppSensorManager(
     // Callback, wenn eine relevante Kursabweichung erkannt wurde
     private val onCourseDeviation: (Boolean) -> Unit = {}
 ) : SensorEventListener {
+
+    companion object {
+        // Sampling-Raten
+        private const val SAMPLING_RATE_IDLE = SensorManager.SENSOR_DELAY_NORMAL
+        private const val SAMPLING_RATE_ACTIVE = SensorManager.SENSOR_DELAY_GAME
+
+        // Bewegungsschwellwert für das Umschalten Idle -> Active
+        private const val MOTION_THRESHOLD = 1.5f
+
+        // Zeit ohne größere Bewegung, um von Active -> Idle zu wechseln
+        private const val IDLE_TIMEOUT_MS = 3000L
+
+        // Stroke Detection
+        private const val MIN_TIME_BETWEEN_PEAKS_MS = 300L
+        private const val ACC_THRESHOLD = 2.5f
+
+        // Kursabweichung
+        private const val YAW_CHANGE_THRESHOLD = 20f
+        private const val DEVIATION_COUNT_THRESHOLD = 3
+    }
 
     // SensorManager und Sensoren
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
@@ -41,7 +56,6 @@ class AppSensorManager(
     private var strokeCount = 0
     private var isStrokeInProgress = false
     private var lastPeakTime = 0L
-    private val MIN_TIME_BETWEEN_PEAKS_MS = 300L
 
     // Gyro/Yaw
     private var initialYaw = 0f
@@ -49,11 +63,20 @@ class AppSensorManager(
     private var lastGyroTimestamp = 0L
     private var initialYawSet = false
     private var deviationCounter = 0
-    private val DEVIATION_COUNT_THRESHOLD = 3
 
-    // Schwellenwerte
-    private val ACC_THRESHOLD = 2.5f
-    private val YAW_CHANGE_THRESHOLD = 20f
+    private fun magnitude(x: Float, y: Float, z: Float): Float =
+        sqrt(x * x + y * y + z * z)
+
+    private fun normalizeAngle(angle: Float): Float {
+        var a = angle % 360f
+        if (a < 0f) a += 360f
+        return a
+    }
+
+    private fun yawDifference(reference: Float, current: Float): Float {
+        val diff = abs(current - reference)
+        return if (diff > 180f) 360f - diff else diff
+    }
 
     // -----------------------------------------------------------
     // Start/Stop Recording
@@ -64,7 +87,7 @@ class AppSensorManager(
         deviationCounter = 0
         // Registriere Sensoren zunächst im IDLE-Modus:
         registerSensors(SensorMode.IDLE)
-        Log.d("AppSensorManager", "=== START Recording ===")
+        Log.d(TAG, "=== START Recording ===")
     }
 
     fun stopRecording() {
@@ -72,7 +95,7 @@ class AppSensorManager(
         // Sensoren abmelden
         unregisterSensors()
         onCourseDeviation(false)
-        Log.d("AppSensorManager", "=== STOP Recording ===")
+        Log.d(TAG, "=== STOP Recording ===")
     }
 
     // -----------------------------------------------------------
@@ -86,26 +109,27 @@ class AppSensorManager(
 
         linearAcc?.let {
             sensorManager.registerListener(this, it, rate)
-        } ?: Log.w("AppSensorManager", "TYPE_LINEAR_ACCELERATION nicht verfügbar")
+        } ?: Log.w(TAG, "TYPE_LINEAR_ACCELERATION nicht verfügbar")
 
         gyroscope?.let {
             sensorManager.registerListener(this, it, rate)
-        } ?: Log.w("AppSensorManager", "TYPE_GYROSCOPE nicht verfügbar")
+        } ?: Log.w(TAG, "TYPE_GYROSCOPE nicht verfügbar")
 
         rotationSensor?.let {
             sensorManager.registerListener(this, it, rate)
-        } ?: Log.w("AppSensorManager", "TYPE_ROTATION_VECTOR nicht verfügbar")
+        } ?: Log.w(TAG, "TYPE_ROTATION_VECTOR nicht verfügbar")
 
         currentMode = mode
-        Log.d("AppSensorManager", "Sensoren registriert mit Modus=$mode und Rate=$rate")
+        Log.d(TAG, "Sensoren registriert mit Modus=$mode und Rate=$rate")
     }
 
     private fun unregisterSensors() {
         sensorManager.unregisterListener(this)
-        Log.d("AppSensorManager", "Sensoren abgemeldet.")
+        Log.d(TAG, "Sensoren abgemeldet.")
     }
 
     private fun reRegisterSensors(newMode: SensorMode) {
+        if (currentMode == newMode) return
         unregisterSensors()
         registerSensors(newMode)
     }
@@ -157,11 +181,11 @@ class AppSensorManager(
     // LINEAR_ACCELERATION => Bewegung & Stroke-Detection
     // -----------------------------------------------------------
     private fun handleLinearAcceleration(event: SensorEvent) {
-        val x = event.values[0]
-        val y = event.values[1]
-        val z = event.values[2]
-
-        val magnitude = sqrt(x * x + y * y + z * z)
+        val magnitude = magnitude(
+            event.values[0],
+            event.values[1],
+            event.values[2]
+        )
 
         // 1) Mode Switch prüfen
         checkForModeSwitch(magnitude)
@@ -181,7 +205,7 @@ class AppSensorManager(
                 isStrokeInProgress = true
                 lastPeakTime = currentTime
 
-                Log.d("AppSensorManager", "Stroke erkannt! strokeCount = $strokeCount")
+                Log.d(TAG, "Stroke erkannt! strokeCount = $strokeCount")
                 onStrokeCountChanged(strokeCount)
 
                 // Beispiel: alle 7 Züge => Richtung checken
@@ -208,10 +232,7 @@ class AppSensorManager(
             val dt = (timestamp - lastGyroTimestamp) * 1e-9f
             val deltaYawDeg = gyroZ * dt * (180f / Math.PI.toFloat())
 
-            currentYaw += deltaYawDeg
-            if (currentYaw < 0) currentYaw += 360f
-            if (currentYaw > 360f) currentYaw -= 360f
-
+            currentYaw = normalizeAngle(currentYaw + deltaYawDeg)
             if (!initialYawSet) {
                 initialYaw = currentYaw
                 initialYawSet = true
@@ -226,8 +247,7 @@ class AppSensorManager(
         val orientation = FloatArray(3)
         SensorManager.getOrientation(rotationMatrix, orientation)
         // azimuth in radians -> convert to degrees
-        var yaw = Math.toDegrees(orientation[0].toDouble()).toFloat()
-        if (yaw < 0) yaw += 360f
+        val yaw = normalizeAngle(Math.toDegrees(orientation[0].toDouble()).toFloat())
 
         currentYaw = yaw
         if (!initialYawSet) {
@@ -238,14 +258,13 @@ class AppSensorManager(
 
     private fun checkOrientation() {
         if (!initialYawSet) {
-            Log.d("AppSensorManager", "Keine Initialorientierung gesetzt!")
+            Log.d(TAG, "Keine Initialorientierung gesetzt!")
             return
         }
-        val diff = abs(currentYaw - initialYaw)
-        val normalizedDiff = if (diff > 180) 360 - diff else diff
-        if (normalizedDiff > YAW_CHANGE_THRESHOLD) {
+        val diff = yawDifference(initialYaw, currentYaw)
+        if (diff > YAW_CHANGE_THRESHOLD) {
             deviationCounter++
-            Log.d("AppSensorManager", "Richtung stark geändert! (diff=$normalizedDiff°)")
+            Log.d(TAG, "Richtung stark geändert! (diff=$diff°)")
             if (deviationCounter >= DEVIATION_COUNT_THRESHOLD) {
                 onCourseDeviation(true)
             }
@@ -254,7 +273,7 @@ class AppSensorManager(
                 deviationCounter = 0
                 onCourseDeviation(false)
             }
-            Log.d("AppSensorManager", "Richtung weitgehend gleich. (diff=$normalizedDiff°)")
+            Log.d(TAG, "Richtung weitgehend gleich. (diff=$diff°)")
         }
     }
 }
